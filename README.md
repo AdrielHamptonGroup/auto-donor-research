@@ -15,7 +15,7 @@ A script to automatically research new donors.
 2. Find any unitemized contributions made through 3rd party payment systems 
    and create new receipts for them
 3. Upload receipts to the `contribution_receipts` table of the campaign database 
-4. Link them to the donor records through the `donor_receip_link` table so that 
+4. Link them to the donor records through the `donor_receipt_link` table so that 
    they will be included in the `donor_sumarry` view. 
    
 #### Usage
@@ -32,6 +32,7 @@ Rscript auto_donor_research.R
 2. Install R package dependencies (see `install_dependencies` below)
 3. Include a `.secrets` json file in the same directory with connection
    information:
+   
 | variable name | contents |
 | --- | --- |
 | jaffe_db_uri | Address of database server |
@@ -46,7 +47,8 @@ if you need it. If you need an openFEC API key, you can generate one at https://
 ### install_dependencies.R
 
 Needs to be run one time to install R packages used in the 
-`auto_donor_research.R`
+`auto_donor_research.R`. I'm not sure if this will run smoothly from an Rscript call. 
+It depends on whether the R installation is configured with a default library and repository.
 
 ### skip_next_donor.R
 
