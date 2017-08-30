@@ -22,7 +22,7 @@ tryCatch({
     anti_join(donor_receipt_link, by = "donor_id") %>% head(1)
   next_donor <- next_donor_query %>% collect()
   cat("Skipping donor", next_donor$donor_id, next_donor$firstname, 
-      next_donor$lastname1, next_dono$state1)
+      next_donor$lastname1, next_donor$state1)
   tibble(donor_id = next_donor$donor_id[1], 
          receipt_id = null_receipt_id) %>%
     dbWriteTable(dbi, "donor_receipt_link", .,

@@ -129,9 +129,7 @@ tryCatch({
       distinct() %>%
       mutate(contribution_receipt_date = 
                as.Date(sub("T*$", "", contribution_receipt_date)),
-             zip5 = substr(contributor_zip, 1, 5)) %>%
-      left_join(select(committees, committee_id, committee_name = name), 
-                by = "committee_id")
+             zip5 = substr(contributor_zip, 1, 5)) 
     
     ## handle earmarked contributions
     receipts$unitemized <- F
@@ -167,18 +165,24 @@ tryCatch({
     }
     # cleanup for db
     receipts <- receipts %>%
-      select(-increased_limit, -candidate_office_description, 
-             -amendment_indicator, -back_reference_transaction_id, 
-             -schedule_type,  -candidate_office, -candidate_office_district, 
-             -memo_code_full, -line_number_label) %>% 
       rename(contributor_zip5 = zip5) %>%
-      # pull key columns to the front
-      select(contributor_name, contributor_city, contributor_state, 
-             contributor_zip5, contributor_occupation, contributor_employer, 
-             committee_name, contribution_receipt_amount, 
-             contribution_receipt_date, memo_text, receipt_type_full, 
-             unitemized, everything()) 
-    
+      select(
+        contributor_name, contributor_city, 
+        contributor_state, contributor_zip5, contributor_occupation, 
+        contributor_employer, committee_name, contribution_receipt_amount, 
+        contribution_receipt_date, memo_text, receipt_type_full, 
+        unitemized, link_id, report_type, filing_form, line_number, 
+        contributor_zip, schedule_type_full, contributor_middle_name, 
+        contributor_prefix, contributor_last_name, committee_id, 
+        contributor_suffix, original_sub_id, contributor_first_name, 
+        report_year, memo_code, entity_type, back_reference_schedule_name, 
+        entity_type_desc, contributor_id, fec_election_type_desc, 
+        pdf_url, file_number, sub_id, contributor_aggregate_ytd, 
+        amendment_indicator_desc, transaction_id, receipt_type, 
+        fec_election_year, memoed_subtotal, two_year_transaction_period, 
+        is_individual, load_date, image_number
+      )
+
     ## write donor's receipts and links to the DB
     name_mismatches <- 
       tolower(receipts$contributor_first_name) != tolower(next_donor$firstname[1]) |
