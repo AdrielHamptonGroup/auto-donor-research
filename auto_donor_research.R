@@ -36,13 +36,6 @@ FEC_api_Request <- function (quer) {
   cat(".")
   cont <- content(r, "text", encoding = "UTF-8") 
   out <- cont %>% fromJSON
-  # need to extract last index id manually as character to avoid floating
-  # point precision errors
-  regexec("\"last_index\":(\\d+)", cont) %>%
-    regmatches(cont, .) %>%
-    magrittr::extract2(1) %>%
-    magrittr::extract(2) -> 
-    out$pagination$last_indexes$last_index 
   out
 }
 tryCatch({
@@ -101,21 +94,21 @@ tryCatch({
     }
     committees <- distinct(r_json$results$committee)
     receipts <- r_json$results %>% select(-committee, -contributor)
-    page_num <- 2
-    while(page_num <= r_json$pagination$pages) {
+    next_page <- function () {
       quer$last_index <- r_json$pagination$last_indexes$last_index
-      r_json <- FEC_api_Request(quer)
-      if(length(r_json$results) == 0) {
-        cat("FEC API pagination error on donor_id", next_donor$donor_id)
-        break
-      }
+      quer$last_contribution_receipt_date <- 
+        r_json$pagination$last_indexes$last_contribution_receipt_date
+      FEC_api_Request(quer)
+    }
+    r_json <- next_page()
+    while(length(r_json$results) != 0) {
       receipts <- receipts %>%
         bind_rows(select(r_json$results, -committee, -contributor)) %>%
         distinct()
       committees <- committees %>% 
         bind_rows(r_json$results$committee) %>%
         distinct()
-      page_num <- page_num + 1
+      r_json <- next_page()
     }
     ## clean and prep receipts for upload
     committees <- committees %>%
@@ -129,9 +122,7 @@ tryCatch({
       distinct() %>%
       mutate(contribution_receipt_date = 
                as.Date(sub("T*$", "", contribution_receipt_date)),
-             zip5 = substr(contributor_zip, 1, 5)) %>%
-      left_join(select(committees, committee_id, committee_name = name), 
-                by = "committee_id")
+             zip5 = substr(contributor_zip, 1, 5)) 
     
     ## handle earmarked contributions
     receipts$unitemized <- F
@@ -167,18 +158,24 @@ tryCatch({
     }
     # cleanup for db
     receipts <- receipts %>%
-      select(-increased_limit, -candidate_office_description, 
-             -amendment_indicator, -back_reference_transaction_id, 
-             -schedule_type,  -candidate_office, -candidate_office_district, 
-             -memo_code_full, -line_number_label) %>% 
       rename(contributor_zip5 = zip5) %>%
-      # pull key columns to the front
-      select(contributor_name, contributor_city, contributor_state, 
-             contributor_zip5, contributor_occupation, contributor_employer, 
-             committee_name, contribution_receipt_amount, 
-             contribution_receipt_date, memo_text, receipt_type_full, 
-             unitemized, everything()) 
-    
+      select(
+        contributor_name, contributor_city, 
+        contributor_state, contributor_zip5, contributor_occupation, 
+        contributor_employer, committee_name, contribution_receipt_amount, 
+        contribution_receipt_date, memo_text, receipt_type_full, 
+        unitemized, link_id, report_type, filing_form, line_number, 
+        contributor_zip, schedule_type_full, contributor_middle_name, 
+        contributor_prefix, contributor_last_name, committee_id, 
+        contributor_suffix, original_sub_id, contributor_first_name, 
+        report_year, memo_code, entity_type, back_reference_schedule_name, 
+        entity_type_desc, contributor_id, fec_election_type_desc, 
+        pdf_url, file_number, sub_id, contributor_aggregate_ytd, 
+        amendment_indicator_desc, transaction_id, receipt_type, 
+        fec_election_year, memoed_subtotal, two_year_transaction_period, 
+        is_individual, load_date, image_number
+      )
+
     ## write donor's receipts and links to the DB
     name_mismatches <- 
       tolower(receipts$contributor_first_name) != tolower(next_donor$firstname[1]) |
