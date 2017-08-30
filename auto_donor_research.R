@@ -94,23 +94,21 @@ tryCatch({
     }
     committees <- distinct(r_json$results$committee)
     receipts <- r_json$results %>% select(-committee, -contributor)
-    page_num <- 2
-    while(page_num <= r_json$pagination$pages) {
+    next_page <- function () {
       quer$last_index <- r_json$pagination$last_indexes$last_index
       quer$last_contribution_receipt_date <- 
         r_json$pagination$last_indexes$last_contribution_receipt_date
-      r_json <- FEC_api_Request(quer)
-      if(length(r_json$results) == 0) {
-        cat("FEC API pagination error on donor_id", next_donor$donor_id)
-        break
-      }
+      FEC_api_Request(quer)
+    }
+    r_json <- next_page()
+    while(length(r_json$results) != 0) {
       receipts <- receipts %>%
         bind_rows(select(r_json$results, -committee, -contributor)) %>%
         distinct()
       committees <- committees %>% 
         bind_rows(r_json$results$committee) %>%
         distinct()
-      page_num <- page_num + 1
+      r_json <- next_page()
     }
     ## clean and prep receipts for upload
     committees <- committees %>%
