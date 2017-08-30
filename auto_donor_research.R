@@ -36,13 +36,6 @@ FEC_api_Request <- function (quer) {
   cat(".")
   cont <- content(r, "text", encoding = "UTF-8") 
   out <- cont %>% fromJSON
-  # need to extract last index id manually as character to avoid floating
-  # point precision errors
-  regexec("\"last_index\":(\\d+)", cont) %>%
-    regmatches(cont, .) %>%
-    magrittr::extract2(1) %>%
-    magrittr::extract(2) -> 
-    out$pagination$last_indexes$last_index 
   out
 }
 tryCatch({
@@ -104,6 +97,8 @@ tryCatch({
     page_num <- 2
     while(page_num <= r_json$pagination$pages) {
       quer$last_index <- r_json$pagination$last_indexes$last_index
+      quer$last_contribution_receipt_date <- 
+        r_json$pagination$last_indexes$last_contribution_receipt_date
       r_json <- FEC_api_Request(quer)
       if(length(r_json$results) == 0) {
         cat("FEC API pagination error on donor_id", next_donor$donor_id)
