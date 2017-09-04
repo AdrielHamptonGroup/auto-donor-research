@@ -58,7 +58,8 @@ tryCatch({
     next_donor$firstname <- gsub("[^[:alpha:]]", "", next_donor$firstname)
     next_donor$lastname1 <- gsub("[^[:alpha:]]", "", next_donor$lastname1)
     if (is.na(next_donor$firstname[1]) | is.na(next_donor$lastname1[1]) |
-        nchar(next_donor$lastname1[1]) < 2 | 
+        nchar(next_donor$lastname1[1]) < 2 |
+        nchar(next_donor$firstname[1]) < 2 |
         tolower(next_donor$lastname1[1]) %in% c("na", "no") | 
         tolower(next_donor$firstname[1]) %in% c("na", "no") ) {
       cat("Insufficient info for donor_id:", next_donor$donor_id, "- Skipping\n")
