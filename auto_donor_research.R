@@ -20,17 +20,19 @@ FEC_api_Request <- function (quer) {
   ver <- "v1"
   meth <- "/schedules/schedule_a/"
   quer$api_key = .secrets$fec_api_key
-  rate_limit_wait <- 30
-  Sys.sleep(3.6) # 1000 requests per hour
+  retry_wait <- 30
   r <- GET(uri, path = c(ver, meth), query = quer)
+  r$headers$`x-ratelimit-limit` %>%
+    switch("120" = 0.5, 3.6) %>%
+    Sys.sleep() 
   while(status_code(r) != 200) {
-    if(rate_limit_wait > 480) {
+    if(retry_wait > 480) {
       stop_for_status(r)
     }
     http_condition(r, type = "message") %>% message()
-    print(paste("pausing", rate_limit_wait / 60, "min"))
-    Sys.sleep(rate_limit_wait)
-    rate_limit_wait <- rate_limit_wait * 2
+    print(paste("pausing", retry_wait / 60, "min"))
+    Sys.sleep(retry_wait)
+    retry_wait <- retry_wait * 2
     r <- GET(uri, path = c(ver, meth), query = quer)
   }
   cat(".")
