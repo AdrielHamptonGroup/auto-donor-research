@@ -13,8 +13,6 @@ if (any(.secrets[c("fec_api_key", "jaffe_db_pw", "jaffe_db_usr",
 src <- with(.secrets, src_mysql("jaffe_db", jaffe_db_uri, jaffe_db_port, 
                                 jaffe_db_usr, jaffe_db_pw))
 dbi <- src$con
-# for marking people with no reults as researched
-null_receipt_id <- 32768
 FEC_api_Request <- function (quer) {
   uri <- "https://api.open.fec.gov/v1"
   ver <- "v1"
@@ -40,6 +38,27 @@ FEC_api_Request <- function (quer) {
   out <- cont %>% fromJSON
   out
 }
+research_status_factory <- function (dbsrc) {
+  tbl(dbsrc, "donor_research_states") %>%
+    collect() %>% 
+    with(setNames(donor_research_state_id, description)) ->
+    states
+  last_state_set <- NA
+  list(
+    set_status = function (db, donor_id, state) {
+      state_id <- states[state]
+      stopifnot(length(na.omit(donor_id)) == 1,
+                length(na.omit(state_id)) == 1)
+      last_state_set <<- state
+      dbExecute(db, paste(
+        "update donors set research_status =", state_id,
+        "where donor_id =", donor_id
+      ))
+    },
+    get_last_state = function () { last_state_set },
+    states = states
+  )
+} 
 tryCatch({
   donors <- tbl(src, "donors")
   donor_receipt_link <- tbl(src, "donor_receipt_link")
@@ -49,14 +68,17 @@ tryCatch({
     select(committee_id) %>%
     collect() %>%
     magrittr::extract2(1)
+  research_states <- research_status_factory(src)
   next_donor_query <- donors %>%
-    anti_join(donor_receipt_link, by = "donor_id") 
+    filter(research_status == !!unname(research_states$states["Not researched"]))
   cat("Remaining donors needing research:", 
       next_donor_query %>% summarize(n = n()) %>% collect() %>% 
       magrittr::extract2("n"), "\n")
   next_donor_query <- next_donor_query %>% head(1)
   next_donor <- next_donor_query %>% collect()
   while(nrow(next_donor)) {
+    # mark donor so parallel scripts will skip it
+    research_states$set_status(dbi, next_donor$donor_id, "In progress")
     next_donor$firstname <- gsub("[^[:alpha:]]", "", next_donor$firstname)
     next_donor$lastname1 <- gsub("[^[:alpha:]]", "", next_donor$lastname1)
     if (is.na(next_donor$firstname[1]) | is.na(next_donor$lastname1[1]) |
@@ -64,11 +86,9 @@ tryCatch({
         nchar(next_donor$firstname[1]) < 2 |
         tolower(next_donor$lastname1[1]) %in% c("na", "no") | 
         tolower(next_donor$firstname[1]) %in% c("na", "no") ) {
-      cat("Insufficient info for donor_id:", next_donor$donor_id, "- Skipping\n")
-      tibble(donor_id = next_donor$donor_id[1], 
-             receipt_id = null_receipt_id) %>%
-        dbWriteTable(dbi, "donor_receipt_link", .,
-                     append = TRUE, row.names = FALSE)
+      cat("Insufficient info for donor_id:", 
+          next_donor$donor_id, "- Skipping\n")
+      research_states$set_status(dbi, next_donor$donor_id, "Research Complete")
       next_donor <- next_donor_query %>% collect()
       next
     }
@@ -86,11 +106,8 @@ tryCatch({
     }
     r_json <- FEC_api_Request(quer)
     if(r_json$pagination$count == 0) {
-      # mark person as researched by linking to an empty receipt
-      tibble(donor_id = next_donor$donor_id[1], 
-             receipt_id = null_receipt_id) %>%
-        dbWriteTable(dbi, "donor_receipt_link", .,
-                     append = TRUE, row.names = FALSE)
+      # no results
+      research_states$set_status(dbi, next_donor$donor_id, "Research complete")
       cat(" No receipts found for", quer$contributor_name, "\n")
       next_donor <- next_donor_query %>% collect()
       next
@@ -178,7 +195,6 @@ tryCatch({
         fec_election_year, memoed_subtotal, two_year_transaction_period, 
         is_individual, load_date, image_number
       )
-
     ## write donor's receipts and links to the DB
     name_mismatches <- 
       tolower(receipts$contributor_first_name) != tolower(next_donor$firstname[1]) |
@@ -214,10 +230,23 @@ tryCatch({
                    append = TRUE, row.names = FALSE)
       known_committees <- c(known_committees, committees$committee_id)
     }
+    research_states$set_status(dbi, next_donor$donor_id, "Research complete")
     cat("Done\n")
     next_donor <- next_donor_query %>% collect()
   }
 }, finally = {
+  # revert if error occured mid-research
+  if (exists("next_donor") && exists("research_states") &&
+      research_states$get_last_state() == "In progress") {
+    if(dbIsValid(dbi)) {
+      cat("Reverting status to 'Not researched' for donor_id:", 
+          next_donor$donor_id)
+      research_states$set_status(dbi, next_donor$donor_id, "Not researched")
+    } else {
+      cat("donor_id:", next_donor$donor_id, " needs to be reset, but ",
+          "database is not available.")
+    }
+  }
   cat("\nDisconnecting from Database\n")
   dbDisconnect(dbi)
 })

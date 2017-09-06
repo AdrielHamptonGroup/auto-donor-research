@@ -1,7 +1,26 @@
 # Automated Donor Research
 
 Scripts for our automated donor research process using R and the openFEC web
-API.
+API. This process retrieves past contribution receipts for donors that 
+exist in our contact database. 
+
+## News
+
+* Added a `reseach_status` flag to the `donors` table so `auto_donor_research`
+  can mark when it begins researching a donor to allow multiple instances
+  to run in parallel withoutn colliding. 
+  * Robust error handling will revert this flag if an error occurs before
+    uploading the receipt data
+  * Unfortunately, this does not currently also detect when a script execution
+    is manually aborted, see the new `clear_incomplete_research_flags` script
+    below
+  * If you would like a donor to be researched again, 
+    (e.g. after correcting a name error) reset their 
+    `research_status` to 1 ("Not researched"). 
+* `auto_donor_research` automatically adjusts the API call rate based on the
+  limit reported by the FEC api. This allows upgraded to keys to run at the
+  120/min rate instead of the default 1000/hour. 
+  [Info on upgrading your key](18F/openFEC#2569)
 
 ## Files
 
@@ -16,7 +35,7 @@ A script to automatically research new donors.
    and create new receipts for them
 3. Upload receipts to the `contribution_receipts` table of the campaign database 
 4. Link them to the donor records through the `donor_receipt_link` table so that 
-   they will be included in the `donor_sumarry` view. 
+   they will be included in the `donor_summary` view. 
    
 #### Usage
 
@@ -66,6 +85,16 @@ Note that the FEC API incorrectly returns "502 Bad Gateway" for certain invalid
 donor name patterns. If you see this error repeatedly, the `skip_next_donor`
 script will fix the problem.
 
+### clear_incomplete_research_flags.R
+
+Find donors stuck in researched status limbo and reset them. Do not run unless
+you know nobody is currently running the research script. 
+
+#### Usage
+
+```
+Rscript clear_incomplete_research_flags.R
+```
 
 ### db setup.R
 
