@@ -88,7 +88,7 @@ tryCatch({
         tolower(next_donor$firstname[1]) %in% c("na", "no") ) {
       cat("Insufficient info for donor_id:", 
           next_donor$donor_id, "- Skipping\n")
-      research_states$set_status(dbi, next_donor$donor_id, "Research Complete")
+      research_states$set_status(dbi, next_donor$donor_id, "Research complete")
       next_donor <- next_donor_query %>% collect()
       next
     }
