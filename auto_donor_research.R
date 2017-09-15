@@ -1,15 +1,29 @@
-suppressMessages({
+suppressMessages(suppressWarnings({
   library(tidyverse)
   library(httr)
   library(jsonlite)
   library(DBI)
   library(RMySQL)
-})
+}))
 .secrets <- readLines(".secrets") %>% paste(collapse = "\n") %>% fromJSON()
 if (any(.secrets[c("fec_api_key", "jaffe_db_pw", "jaffe_db_usr",
                    "jaffe_db_uri", "jaffe_db_port")] %>% sapply(is.null))) {
   stop("Connection info missing from .secrets file")
 }
+cl_args <- commandArgs(trailingOnly = TRUE)
+limit <- NA
+limit_pos <- grep("limit", cl_args, ignore.case = TRUE)
+if (length(limit_pos)) {
+  limit <- gsub("limit=", "", cl_args[limit_pos[1]]) %>% as.numeric()
+  cat("Limiting: will stop after", limit, "donors\n")
+}
+client_id <- NA
+client_id_pos <- grep("client(_id)?=", cl_args, ignore.case = TRUE)
+if (length(client_id_pos)) {
+  client_id <- gsub("client(_id)?=", "", cl_args[client_id_pos[1]], 
+                    ignore.case = TRUE) %>% as.numeric()
+}
+reverse <- any(grepl("reverse", cl_args, ignore.case = T))
 src <- with(.secrets, src_mysql("jaffe_db", jaffe_db_uri, jaffe_db_port, 
                                 jaffe_db_usr, jaffe_db_pw))
 dbi <- src$con
@@ -71,12 +85,24 @@ tryCatch({
   research_states <- research_status_factory(src)
   next_donor_query <- donors %>%
     filter(research_status == !!unname(research_states$states["Not researched"]))
-  cat("Remaining donors needing research:", 
+  if (!is.na(client_id[1])) {
+    next_donor_query <- next_donor_query %>%
+      filter(client_id == !!client_id[1])
+  }
+  if (reverse) {
+    next_donor_query <- next_donor_query %>%
+      arrange(desc(donor_id))
+    cat("Using reverse order\n")
+  }
+  cat("Remaining donors needing research",
+      ifelse(is.na(client_id[1]), ":", paste0("for client ", client_id[1], ":")),
       next_donor_query %>% summarize(n = n()) %>% collect() %>% 
       magrittr::extract2("n"), "\n")
   next_donor_query <- next_donor_query %>% head(1)
   next_donor <- next_donor_query %>% collect()
-  while(nrow(next_donor)) {
+  count <- 0
+  while(nrow(next_donor) && (is.na(limit) || count < limit)) {
+    count <- count + 1
     # mark donor so parallel scripts will skip it
     research_states$set_status(dbi, next_donor$donor_id, "In progress")
     next_donor$firstname <- gsub("[^[:alpha:]]", "", next_donor$firstname)
@@ -108,7 +134,8 @@ tryCatch({
     if(r_json$pagination$count == 0) {
       # no results
       research_states$set_status(dbi, next_donor$donor_id, "Research complete")
-      cat(" No receipts found for", quer$contributor_name, "\n")
+      cat(" No receipts found for", quer$contributor_name, "id:",
+          next_donor$donor_id, "\n")
       next_donor <- next_donor_query %>% collect()
       next
     }

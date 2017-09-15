@@ -6,6 +6,12 @@ exist in our contact database.
 
 ## News
 
+September 26:
+
+* Added command line arguments to `auto_donor_research.R`
+* List `donor_id` in message for donors where no receipts were found
+
+Setpember 7:
 * Added a `reseach_status` flag to the `donors` table so `auto_donor_research`
   can mark when it begins researching a donor to allow multiple instances
   to run in parallel withoutn colliding. 
@@ -41,8 +47,16 @@ A script to automatically research new donors.
 
 Run from the command prompt.
 
+The following command line arguments are available:
+
+Argument | Effect
+--- | ---
+`client_id=X` | Research only donors for the client whose database id is specified
+`reverse` | Start from the highest `donor_id` and work backwards
+`limit=X` | Stop after X donors have been reaserched (useful for testing because there is no clean way to interrup the script at this time)
+
 ```
-Rscript auto_donor_research.R
+Rscript auto_donor_research.R client=1 limit=1000 reverse
 ```
 
 #### Requirements
