@@ -58,7 +58,7 @@ Argument | Effect
 `limit=X` | Stop after X donors have been reaserched (useful for testing because there is no clean way to interrup the script at this time)
 
 ```
-Rscript auto_donor_research.R client=1 limit=1000 reverse
+Rscript auto_donor_research.R client_id=1 limit=1000 reverse
 ```
 
 #### Requirements
