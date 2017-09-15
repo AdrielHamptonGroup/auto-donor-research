@@ -239,11 +239,6 @@ tryCatch({
       filter(new_links, !name_mismatches) %>%
         dbWriteTable(dbi, "donor_receipt_link", .,
                      append = TRUE, row.names = FALSE)
-    } else {
-      tibble(donor_id = next_donor$donor_id[1], 
-             receipt_id = null_receipt_id) %>%
-        dbWriteTable(dbi, "donor_receipt_link", .,
-                     append = TRUE, row.names = FALSE)
     }
     if (any(name_mismatches)) {
       filter(new_links, name_mismatches) %>%

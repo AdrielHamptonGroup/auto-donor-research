@@ -10,6 +10,8 @@ September 26:
 
 * Added command line arguments to `auto_donor_research.R`
 * List `donor_id` in message for donors where no receipts were found
+* Fix error for case where receipts were returned, but none matched the
+  requested name
 
 Setpember 7:
 * Added a `reseach_status` flag to the `donors` table so `auto_donor_research`
