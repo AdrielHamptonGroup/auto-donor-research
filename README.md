@@ -6,7 +6,11 @@ exist in our contact database.
 
 ## News
 
-September 26:
+September 20:
+
+* New script: `auto_accurate_append.R`
+
+September 14:
 
 * Added command line arguments to `auto_donor_research.R`
 * List `donor_id` in message for donors where no receipts were found
@@ -78,6 +82,38 @@ Rscript auto_donor_research.R client_id=1 limit=1000 reverse
 
 The `.secrets` file is not included in the repo. Contact @datatitian on slack
 if you need it. If you need an openFEC API key, you can generate one at https://api.data.gov/signup/
+
+### auto_accurate_append.R
+
+A script to automatically search for phone numbers for the specified donors
+using the Accurate Append api
+
+For each donor_id in the povided csv:
+
+1. Look for address in the database
+2. If no known address, attempt reverse email lookup to get an address
+3. Perform consumer phone lookup from available addresses
+4. Save new phone numbers in `donor_phones` table and new addresses in
+   `donor_addresses` table. 
+   
+In addition to the database connection info required for
+`auto_donor_research.R`, you'll also nee an `accurate_append_key` entry
+in your `.secrets` file to run this script.  
+
+#### Usage
+
+Run from the command prompt and specify the path to a csv file with a list
+of `donor_id` to research:
+
+The following optional arguments are available:
+
+Argument | Effect
+--- | ---
+`limit=X` | Stop after X donors have been reaserched (useful for testing because there is no clean way to interrup the script at this time)
+
+```
+Rscript auto_accurate_append.R "my clients.csv" limit=1000
+```
 
 ### install_dependencies.R
 
