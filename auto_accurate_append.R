@@ -78,10 +78,12 @@ tryCatch({
     cat(next_donor$firstname, next_donor$lastname1, 
         next_donor$donor_id, ":")
     # not enough info for a phone search? try reverse email
-    known_addresses <- next_donor %>%
+    addresses <- next_donor %>%
       select(first_name = firstname, last_name = lastname1, address = address1,
-             city = city1, state = state1, zip = zip1)
-    if (!sum(complete.cases(known_addresses))) {
+             city = city1, state = state1, zip = zip1) %>%
+      filter(complete.cases(select(., -zip)))
+    known_addresses <- addresses
+    if (!sum(complete.cases(addresses))) {
       if (is.na(next_donor$email1)) {
         cat("No address or email on file. Skipping\n")
         lookup_states$set_status(dbi, next_donor$donor_id, "Research complete")
@@ -91,7 +93,7 @@ tryCatch({
       res <- reverse_email(.secrets$accurate_append_key, next_donor$email1)
       addresses <- select(res, first_name, last_name, address, city, state, zip)
     }
-    addresses <- filter(addresses, complete.cases(addresses))
+    addresses <- filter(addresses, complete.cases(select(addresses, -zip)))
     if (!nrow(addresses)) {
       cat("No addresses on file. Zero reverse email results. Skipping\n")
       lookup_states$set_status(dbi, next_donor$donor_id, "Research complete")
